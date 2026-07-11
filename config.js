@@ -66,7 +66,7 @@ window.HELIA_CONFIG = Object.freeze({
     modelType: "image",
 
     modelBaseUrl:
-      "https://teachablemachine.withgoogle.com/models/8aRgVfdIA/",
+      "https://teachablemachine.withgoogle.com/models/iFYI3QNOs/",
 
     /**
      * Nombre maximal de propositions affichées.
