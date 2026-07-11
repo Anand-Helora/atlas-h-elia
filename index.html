@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+
+    <meta
+      name="theme-color"
+      content="#044550"
+    />
+
+    <meta
+      name="description"
+      content="ATLAS H-ELIA — Évaluation des locaux par intelligence artificielle"
+    />
+
+    <!-- Paramètres d’installation sur iPhone et iPad -->
+    <meta
+      name="apple-mobile-web-app-capable"
+      content="yes"
+    />
+
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+
+    <meta
+      name="apple-mobile-web-app-title"
+      content="H-ELIA"
+    />
+
+    <title>ATLAS H-ELIA</title>
+
+    <!-- Manifeste PWA -->
+    <link
+      rel="manifest"
+      href="manifest.json"
+    />
+
+    <!-- Icône utilisée par Safari lors de l’ajout à l’écran d’accueil -->
+    <link
+      rel="apple-touch-icon"
+      href="icon-192.png"
+    />
+
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="icon-192.png"
+    />
+
+    <link
+      rel="stylesheet"
+      href="style.css"
+    />
+  </head>
+
+  <body>
+    <div
+      id="app"
+      class="app-shell"
+    ></div>
+
+    <noscript>
+      <div class="noscript-message">
+        JavaScript doit être activé pour utiliser ATLAS H-ELIA.
+      </div>
+    </noscript>
+
+    <!-- Bibliothèque p5.js -->
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.8/lib/p5.min.js"></script>
+
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+
+    <!-- Teachable Machine Image -->
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.3/dist/teachablemachine-image.min.js"></script>
+
+    <!-- Configuration et services principaux -->
+    <script src="config.js"></script>
+    <script src="navigation.js"></script>
+    <script src="camera.js"></script>
+    <script src="ai.js"></script>
+    <script src="inventaire.js"></script>
+
+    <!-- Export et partage -->
+    <script src="export.js"></script>
+    <script src="share.js"></script>
+
+    <!-- Fonctionnalités du scan -->
+    <script src="manual.js"></script>
+
+    <!-- Habillage des écrans -->
+    <script src="home.js"></script>
+    <script src="identification.js"></script>
+    <script src="scan.js"></script>
+    <script src="summary-design.js"></script>
+
+    <!-- Interface de partage du récapitulatif -->
+    <script src="share-ui.js"></script>
+
+    <!-- Interface principale -->
+    <script src="ui.js"></script>
+    <script src="sketch.js"></script>
+
+    <!-- Activation de la PWA -->
+    <script src="pwa.js"></script>
+  </body>
+</html>

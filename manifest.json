@@ -1,0 +1,35 @@
+{
+  "id": "./",
+  "name": "ATLAS H-ELIA",
+  "short_name": "H-ELIA",
+  "description": "Évaluation des locaux par intelligence artificielle",
+  "lang": "fr-BE",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#001217",
+  "theme_color": "#044550",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
