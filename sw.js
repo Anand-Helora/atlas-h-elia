@@ -3,61 +3,85 @@
 /**
  * Service worker ATLAS H-ELIA.
  *
+ * Objectif principal :
+ * - toujours utiliser la dernière version disponible en ligne ;
+ * - conserver la dernière version valide pour le mode hors ligne.
+ *
  * Stratégies :
- * - navigation : réseau en priorité, cache en secours ;
- * - fichiers locaux : cache immédiat, actualisation en arrière-plan ;
- * - modèle Teachable Machine : réseau forcé sans cache HTTP,
- *   puis remplacement de la copie hors ligne ;
- * - autres bibliothèques externes : réseau en priorité,
- *   cache en secours.
+ * - navigation et fichiers locaux : réseau frais en priorité ;
+ * - modèle Teachable Machine : réseau frais en priorité ;
+ * - bibliothèques externes : réseau en priorité ;
+ * - cache uniquement comme solution de secours hors ligne.
  */
 
-const CACHE_VERSION = "v2";
+const CACHE_VERSION =
+  "v3";
 
-const STATIC_CACHE_NAME =
-  `atlas-h-elia-static-${CACHE_VERSION}`;
+const CACHE_PREFIX =
+  "atlas-h-elia";
 
-const RUNTIME_CACHE_NAME =
-  `atlas-h-elia-runtime-${CACHE_VERSION}`;
+const APP_CACHE_NAME =
+  `${CACHE_PREFIX}-app-${CACHE_VERSION}`;
 
 const MODEL_CACHE_NAME =
-  `atlas-h-elia-model-${CACHE_VERSION}`;
+  `${CACHE_PREFIX}-model-${CACHE_VERSION}`;
+
+const RUNTIME_CACHE_NAME =
+  `${CACHE_PREFIX}-runtime-${CACHE_VERSION}`;
 
 /**
- * Fichiers essentiels de l'application.
- *
- * Les icônes seront ajoutées lorsque leurs fichiers
- * auront été créés.
+ * Page utilisée comme solution de secours
+ * pour une navigation hors ligne.
  */
-const STATIC_ASSETS = Object.freeze([
-  "./",
-  "./index.html",
-  "./style.css",
-  "./manifest.json",
-
-  "./config.js",
-  "./navigation.js",
-  "./camera.js",
-  "./ai.js",
-  "./inventaire.js",
-
-  "./manual.js",
-
-  "./home.js",
-  "./identification.js",
-  "./scan.js",
-  "./summary-design.js",
-
-  "./export.js",
-  "./share.js",
-  "./share-ui.js",
-
-  "./ui.js",
-  "./sketch.js",
-]);
+const OFFLINE_FALLBACK_PATH =
+  "./index.html";
 
 /**
- * Hôtes externes autorisés dans le cache d'exécution.
+ * Fichiers locaux nécessaires au fonctionnement
+ * de l’application.
+ *
+ * Ils sont placés dans le cache lors de l’installation,
+ * mais sont toujours vérifiés sur le réseau lorsque
+ * l’appareil est connecté.
+ */
+const APP_ASSETS =
+  Object.freeze([
+    "./",
+    "./index.html",
+    "./style.css",
+
+    "./manifest.json",
+
+    "./icon-192.png",
+    "./icon-512.png",
+    "./icon-512-maskable.png",
+
+    "./config.js",
+    "./navigation.js",
+    "./camera.js",
+    "./ai.js",
+    "./inventaire.js",
+
+    "./manual.js",
+
+    "./home.js",
+    "./identification.js",
+    "./scan.js",
+    "./summary-design.js",
+
+    "./export.js",
+    "./share.js",
+    "./share-ui.js",
+
+    "./ui.js",
+    "./sketch.js",
+
+    "./pwa.js",
+  ]);
+
+/**
+ * Hôtes externes pouvant être conservés
+ * comme secours hors ligne.
  */
 const CACHEABLE_EXTERNAL_HOSTS =
   new Set([
@@ -67,7 +91,8 @@ const CACHEABLE_EXTERNAL_HOSTS =
   ]);
 
 /**
- * Hôtes utilisés par les modèles Teachable Machine.
+ * Hôtes susceptibles de distribuer les fichiers
+ * d’un modèle Teachable Machine.
  */
 const MODEL_HOSTS =
   new Set([
@@ -76,31 +101,31 @@ const MODEL_HOSTS =
   ]);
 
 /**
- * Installation du service worker.
+ * Installation.
  */
 self.addEventListener(
   "install",
   (event) => {
     event.waitUntil(
-      installApplicationCache()
+      installApplication()
     );
   }
 );
 
 /**
- * Activation et suppression des anciens caches.
+ * Activation.
  */
 self.addEventListener(
   "activate",
   (event) => {
     event.waitUntil(
-      activateServiceWorker()
+      activateApplication()
     );
   }
 );
 
 /**
- * Interception des requêtes HTTP GET.
+ * Interception des requêtes.
  */
 self.addEventListener(
   "fetch",
@@ -109,7 +134,8 @@ self.addEventListener(
       event.request;
 
     if (
-      request.method !== "GET"
+      request.method !==
+      "GET"
     ) {
       return;
     }
@@ -119,47 +145,72 @@ self.addEventListener(
         request.url
       );
 
+    /**
+     * Les navigations utilisent toujours
+     * la page la plus récente disponible.
+     */
     if (
       request.mode ===
       "navigate"
     ) {
       event.respondWith(
-        handleNavigationRequest(
-          request
+        networkFirstFresh(
+          request,
+          APP_CACHE_NAME,
+          {
+            navigation:
+              true,
+          }
         )
       );
 
       return;
     }
 
+    /**
+     * Les fichiers du modèle doivent toujours
+     * être vérifiés sur le serveur.
+     */
     if (
-      isTeachableMachineModelRequest(
+      isModelRequest(
         requestUrl
       )
     ) {
       event.respondWith(
-        refreshModelAsset(
-          request
+        networkFirstFresh(
+          request,
+          MODEL_CACHE_NAME
         )
       );
 
       return;
     }
 
+    /**
+     * Tous les fichiers locaux utilisent
+     * également le réseau frais en priorité.
+     *
+     * Cela concerne notamment config.js.
+     */
     if (
       requestUrl.origin ===
       self.location.origin
     ) {
       event.respondWith(
-        staleWhileRevalidate(
+        networkFirstFresh(
           request,
-          STATIC_CACHE_NAME
+          APP_CACHE_NAME
         )
       );
 
       return;
     }
 
+    /**
+     * Les bibliothèques externes versionnées
+     * sont chargées depuis le réseau, puis
+     * conservées comme secours hors ligne.
+     */
     if (
       CACHEABLE_EXTERNAL_HOSTS.has(
         requestUrl.hostname
@@ -176,17 +227,18 @@ self.addEventListener(
 );
 
 /**
- * Prépare le cache initial.
+ * Installe une première copie locale
+ * des fichiers essentiels.
  */
-async function installApplicationCache() {
+async function installApplication() {
   const cache =
     await caches.open(
-      STATIC_CACHE_NAME
+      APP_CACHE_NAME
     );
 
   const results =
     await Promise.allSettled(
-      STATIC_ASSETS.map(
+      APP_ASSETS.map(
         async (assetPath) => {
           const request =
             new Request(
@@ -220,18 +272,19 @@ async function installApplicationCache() {
       )
     );
 
-  const failedAssets =
+  const failures =
     results
       .map(
         (
           result,
           index
         ) => ({
-          result,
           asset:
-            STATIC_ASSETS[
+            APP_ASSETS[
               index
             ],
+
+          result,
         })
       )
       .filter(
@@ -243,16 +296,17 @@ async function installApplicationCache() {
       );
 
   if (
-    failedAssets.length > 0
+    failures.length > 0
   ) {
     console.warn(
-      "Certains fichiers H-ELIA n'ont pas pu être placés dans le cache initial :",
-      failedAssets.map(
+      "Certains fichiers H-ELIA n’ont pas pu être ajoutés au cache initial.",
+      failures.map(
         ({
           asset,
           result,
         }) => ({
           asset,
+
           error:
             result.reason,
         })
@@ -260,35 +314,39 @@ async function installApplicationCache() {
     );
   }
 
+  /**
+   * La nouvelle version devient active
+   * sans attendre la fermeture de tous les onglets.
+   */
   await self.skipWaiting();
 }
 
 /**
- * Active le service worker et supprime
- * les anciennes versions des caches H-ELIA.
+ * Active le nouveau service worker
+ * et supprime les anciennes versions.
  */
-async function activateServiceWorker() {
-  const currentCaches =
+async function activateApplication() {
+  const activeCacheNames =
     new Set([
-      STATIC_CACHE_NAME,
-      RUNTIME_CACHE_NAME,
+      APP_CACHE_NAME,
       MODEL_CACHE_NAME,
+      RUNTIME_CACHE_NAME,
     ]);
 
-  const cacheNames =
+  const existingCacheNames =
     await caches.keys();
 
   await Promise.all(
-    cacheNames.map(
+    existingCacheNames.map(
       (cacheName) => {
         const isHeliaCache =
           cacheName.startsWith(
-            "atlas-h-elia-"
+            `${CACHE_PREFIX}-`
           );
 
         if (
           isHeliaCache &&
-          !currentCaches.has(
+          !activeCacheNames.has(
             cacheName
           )
         ) {
@@ -304,24 +362,23 @@ async function activateServiceWorker() {
     )
   );
 
+  /**
+   * Le service worker prend immédiatement
+   * le contrôle des pages ouvertes.
+   */
   await self.clients.claim();
 }
 
 /**
- * Vérifie si une requête correspond à un fichier
+ * Indique si une URL correspond à un fichier
  * de modèle Teachable Machine.
  *
- * Les fichiers généralement chargés sont :
- * - model.json ;
- * - metadata.json ;
- * - weights.bin.
- *
  * @param {URL} requestUrl
- * URL de la requête.
+ * URL analysée.
  *
  * @returns {boolean}
  */
-function isTeachableMachineModelRequest(
+function isModelRequest(
   requestUrl
 ) {
   if (
@@ -344,51 +401,77 @@ function isTeachableMachineModelRequest(
       "/metadata.json"
     ) ||
     pathname.endsWith(
+      "/weights.bin"
+    ) ||
+    pathname.endsWith(
       ".bin"
     )
   );
 }
 
 /**
- * Charge toujours la dernière version disponible
- * d'un fichier du modèle.
- *
- * Le cache HTTP classique du navigateur est contourné
- * grâce à cache: "no-store".
- *
- * Si le réseau fonctionne :
- * - la dernière ressource distante est retournée ;
- * - la copie hors ligne est remplacée.
- *
- * Si le réseau échoue :
- * - la dernière copie valide du modèle est utilisée.
+ * Charge une ressource sans consulter
+ * le cache HTTP classique du navigateur.
  *
  * @param {Request} request
  * Requête originale.
  *
  * @returns {Promise<Response>}
  */
-async function refreshModelAsset(
+async function fetchFresh(
   request
+) {
+  const freshRequest =
+    new Request(
+      request,
+      {
+        cache:
+          "no-store",
+      }
+    );
+
+  return fetch(
+    freshRequest
+  );
+}
+
+/**
+ * Stratégie principale :
+ *
+ * 1. demande toujours la dernière version au serveur ;
+ * 2. remplace la copie Cache Storage si la réponse est valide ;
+ * 3. utilise la dernière copie valide lorsque le réseau échoue.
+ *
+ * @param {Request} request
+ * Requête.
+ *
+ * @param {string} cacheName
+ * Cache utilisé comme secours.
+ *
+ * @param {Object} options
+ * Options.
+ *
+ * @param {boolean} options.navigation
+ * Indique une navigation HTML.
+ *
+ * @returns {Promise<Response>}
+ */
+async function networkFirstFresh(
+  request,
+  cacheName,
+  {
+    navigation = false,
+  } = {}
 ) {
   const cache =
     await caches.open(
-      MODEL_CACHE_NAME
+      cacheName
     );
 
   try {
-    const freshRequest =
-      new Request(
-        request,
-        {
-          cache:
-            "no-store",
-        }
-      );
-
     const response =
-      await fetch(
-        freshRequest
+      await fetchFresh(
+        request
       );
 
     if (
@@ -397,7 +480,7 @@ async function refreshModelAsset(
       )
     ) {
       throw new Error(
-        `Réponse non exploitable pour le modèle : ${request.url}`
+        `Réponse réseau non exploitable : ${response.status} pour ${request.url}`
       );
     }
 
@@ -405,6 +488,17 @@ async function refreshModelAsset(
       request,
       response.clone()
     );
+
+    /**
+     * Une navigation valide actualise également
+     * la copie générique d’index.html.
+     */
+    if (navigation) {
+      await cache.put(
+        OFFLINE_FALLBACK_PATH,
+        response.clone()
+      );
+    }
 
     return response;
   } catch (error) {
@@ -415,15 +509,50 @@ async function refreshModelAsset(
 
     if (cachedResponse) {
       console.warn(
-        `Le dernier modèle distant est indisponible. Utilisation de la copie hors ligne pour ${request.url}.`,
+        `Réseau indisponible pour ${request.url}. Utilisation de la dernière copie valide.`,
         error
       );
 
       return cachedResponse;
     }
 
+    if (navigation) {
+      const fallbackResponse =
+        await caches.match(
+          OFFLINE_FALLBACK_PATH
+        ) ||
+        await caches.match(
+          "./"
+        );
+
+      if (fallbackResponse) {
+        console.warn(
+          "Navigation hors ligne : utilisation de la dernière page H-ELIA disponible.",
+          error
+        );
+
+        return fallbackResponse;
+      }
+
+      return new Response(
+        createOfflineDocument(),
+        {
+          status:
+            503,
+
+          statusText:
+            "Service indisponible",
+
+          headers: {
+            "Content-Type":
+              "text/html; charset=utf-8",
+          },
+        }
+      );
+    }
+
     console.error(
-      `Le fichier du modèle ${request.url} est indisponible et aucune copie hors ligne n'existe.`,
+      `La ressource ${request.url} est indisponible et aucune copie locale n’existe.`,
       error
     );
 
@@ -432,165 +561,14 @@ async function refreshModelAsset(
 }
 
 /**
- * Navigation :
- * tente d'abord le réseau, puis charge
- * l'application mise en cache.
- *
- * @param {Request} request
- * Requête de navigation.
- *
- * @returns {Promise<Response>}
- */
-async function handleNavigationRequest(
-  request
-) {
-  try {
-    const response =
-      await fetch(
-        new Request(
-          request,
-          {
-            cache:
-              "no-cache",
-          }
-        )
-      );
-
-    if (
-      isCacheableResponse(
-        response
-      )
-    ) {
-      const cache =
-        await caches.open(
-          STATIC_CACHE_NAME
-        );
-
-      await cache.put(
-        "./index.html",
-        response.clone()
-      );
-    }
-
-    return response;
-  } catch (error) {
-    const cachedPage =
-      await caches.match(
-        "./index.html"
-      ) ||
-      await caches.match(
-        "./"
-      );
-
-    if (cachedPage) {
-      return cachedPage;
-    }
-
-    console.error(
-      "La page H-ELIA n'est disponible ni sur le réseau ni dans le cache.",
-      error
-    );
-
-    return new Response(
-      createOfflineDocument(),
-      {
-        status:
-          503,
-
-        statusText:
-          "Service indisponible",
-
-        headers: {
-          "Content-Type":
-            "text/html; charset=utf-8",
-        },
-      }
-    );
-  }
-}
-
-/**
- * Retourne rapidement la version en cache,
- * puis actualise le fichier en arrière-plan.
+ * Stratégie réseau en priorité pour les bibliothèques
+ * externes versionnées.
  *
  * @param {Request} request
  * Requête.
  *
  * @param {string} cacheName
- * Nom du cache.
- *
- * @returns {Promise<Response>}
- */
-async function staleWhileRevalidate(
-  request,
-  cacheName
-) {
-  const cache =
-    await caches.open(
-      cacheName
-    );
-
-  const cachedResponse =
-    await cache.match(
-      request
-    );
-
-  const networkPromise =
-    fetch(
-      request
-    )
-      .then(
-        async (response) => {
-          if (
-            isCacheableResponse(
-              response
-            )
-          ) {
-            await cache.put(
-              request,
-              response.clone()
-            );
-          }
-
-          return response;
-        }
-      )
-      .catch(
-        (error) => {
-          console.warn(
-            `Actualisation impossible pour ${request.url}.`,
-            error
-          );
-
-          return null;
-        }
-      );
-
-  if (cachedResponse) {
-    void networkPromise;
-
-    return cachedResponse;
-  }
-
-  const networkResponse =
-    await networkPromise;
-
-  if (networkResponse) {
-    return networkResponse;
-  }
-
-  return Response.error();
-}
-
-/**
- * Tente d'abord le réseau.
- * Utilise le cache lorsque le réseau échoue.
- *
- * @param {Request} request
- * Requête.
- *
- * @param {string} cacheName
- * Nom du cache.
+ * Cache de secours.
  *
  * @returns {Promise<Response>}
  */
@@ -610,15 +588,19 @@ async function networkFirst(
       );
 
     if (
-      isCacheableResponse(
+      !isCacheableResponse(
         response
       )
     ) {
-      await cache.put(
-        request,
-        response.clone()
+      throw new Error(
+        `Réponse externe non exploitable : ${response.status} pour ${request.url}`
       );
     }
+
+    await cache.put(
+      request,
+      response.clone()
+    );
 
     return response;
   } catch (error) {
@@ -628,11 +610,16 @@ async function networkFirst(
       );
 
     if (cachedResponse) {
+      console.warn(
+        `Ressource externe indisponible : ${request.url}. Utilisation du cache.`,
+        error
+      );
+
       return cachedResponse;
     }
 
-    console.warn(
-      `La ressource externe ${request.url} est indisponible.`,
+    console.error(
+      `La ressource externe ${request.url} est indisponible sans copie locale.`,
       error
     );
 
@@ -641,13 +628,10 @@ async function networkFirst(
 }
 
 /**
- * Vérifie qu'une réponse peut être mise en cache.
- *
- * Les réponses opaques sont autorisées pour
- * certaines ressources externes.
+ * Vérifie qu’une réponse HTTP peut être conservée.
  *
  * @param {Response|null} response
- * Réponse HTTP.
+ * Réponse.
  *
  * @returns {boolean}
  */
@@ -665,8 +649,8 @@ function isCacheableResponse(
 }
 
 /**
- * Produit une page minimale en cas
- * d'indisponibilité totale.
+ * Page minimale affichée lorsqu’aucune version
+ * de l’application n’est disponible.
  *
  * @returns {string}
  */
@@ -678,7 +662,7 @@ function createOfflineDocument() {
 
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
 
     <meta
@@ -743,6 +727,10 @@ function createOfflineDocument() {
           rgb(0 0 0 / 35%);
       }
 
+      h1 {
+        margin-top: 0;
+      }
+
       p {
         color: #d8eaec;
 
@@ -756,13 +744,13 @@ function createOfflineDocument() {
       <h1>ATLAS H-ELIA</h1>
 
       <p>
-        L'application n'est pas encore disponible hors ligne
-        sur cet appareil.
+        L’application et son modèle ne sont pas accessibles
+        sur le réseau actuellement.
       </p>
 
       <p>
-        Rétablissez la connexion, puis rechargez la page
-        afin de terminer son installation.
+        Aucune copie hors ligne valide n’est encore disponible
+        sur cet appareil.
       </p>
     </main>
   </body>
