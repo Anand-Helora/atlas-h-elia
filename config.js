@@ -14,7 +14,7 @@ window.HELIA_CONFIG = Object.freeze({
     name: "H-ELIA",
     fullName: "ATLAS H-ELIA",
     description: "Contrôle des hydrants",
-    version: "1.2.0",
+    version: "1.3.0",
   },
 
   organisation: {

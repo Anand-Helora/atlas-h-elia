@@ -630,14 +630,24 @@ window.HeliaApp = (() => {
       ? editing.hpZoneShown !== false
       : ["overdue", "empty", "invalid", "future"].includes(baselineHpState);
 
+    /*
+     * Pré-remplissage d'une nouvelle fiche : contrôle déjà fait
+     * sur ce téléphone (plus récent), sinon ligne du fichier SharePoint.
+     */
+    const prefillSource = editing ? null : previous ?? referenceEntry;
+    const prefillFromReference = Boolean(prefillSource && !previous);
+
     const values = {
       id: editing?.id ?? null,
       title,
       controlDate: editing?.controlDate ?? today,
-      status: editing?.status ?? "",
-      hpTest: editing?.hpTest ?? "",
+      status: editing?.status ?? matchChoice(prefillSource?.status, CONFIG.statuses),
+      // Test HP dépassé : un nouveau test est attendu, l'ancien résultat n'est pas repris.
+      hpTest:
+        editing?.hpTest ??
+        (baselineHpState === "overdue" ? "" : matchChoice(prefillSource?.hpTest, CONFIG.hpTests)),
       lastHpTestDate: editing?.lastHpTestDate ?? baselineHpDate,
-      comments: editing?.comments ?? "",
+      comments: editing?.comments ?? prefillSource?.comments ?? "",
     };
 
     const markDirty = () => {
@@ -686,12 +696,17 @@ window.HeliaApp = (() => {
         : null,
     ]);
 
-    const referenceNotice =
-      !editing && referenceSummary.loaded && !referenceEntry
-        ? h("div", { className: "alert alert-warn" }, [
-            h("p", { text: "Cet hydrant ne figure pas dans le référentiel SharePoint chargé. Vérifiez le code scanné." }),
-          ])
-        : null;
+    let referenceNotice = null;
+
+    if (!editing && referenceSummary.loaded && !referenceEntry) {
+      referenceNotice = h("div", { className: "alert alert-warn" }, [
+        h("p", { text: "Cet hydrant ne figure pas dans le référentiel SharePoint chargé. Vérifiez le code scanné." }),
+      ]);
+    } else if (prefillFromReference) {
+      referenceNotice = h("div", { className: "alert alert-info" }, [
+        h("p", { text: "Fiche pré-remplie avec les données de la liste SharePoint. Vérifiez et corrigez si besoin avant d'enregistrer." }),
+      ]);
+    }
 
     /* --- Contrôle déjà présent --- */
 
@@ -919,7 +934,7 @@ window.HeliaApp = (() => {
         title: values.title,
         controlDate: values.controlDate,
         status: statusGroup.getValue(),
-        hpTest: hpZoneVisible ? hpGroup.getValue() : "",
+        hpTest: hpZoneVisible ? hpGroup.getValue() : values.hpTest,
         lastHpTestDate: hpZoneVisible ? hpDateInput.value : baselineHpDate,
         baselineHpDate,
         hpZoneShown: hpZoneVisible,
@@ -982,6 +997,25 @@ window.HeliaApp = (() => {
   /**
    * Groupe de boutons radio présentés sous forme de tuiles.
    */
+  /**
+   * Retrouve un choix à partir d'une valeur du fichier SharePoint,
+   * sans tenir compte des majuscules, accents ni espaces
+   * (« NOK », « pas fait »…). Valeur inconnue → aucun choix.
+   */
+  function matchChoice(value, choices) {
+    const key = (text) =>
+      String(text ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "")
+        .toLowerCase();
+
+    const wanted = key(value);
+    if (!wanted) return "";
+
+    return choices.find((choice) => key(choice.value) === wanted || key(choice.label) === wanted)?.value ?? "";
+  }
+
   function choiceGroup({ name, legend, choices, value, columns, onChange }) {
     const error = fieldError(`f-${name}-error`);
 

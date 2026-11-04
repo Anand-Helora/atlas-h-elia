@@ -8,7 +8,7 @@
  * - les anciens caches (dont ceux de la version IA) sont supprimés.
  */
 
-const CACHE_VERSION = "v6";
+const CACHE_VERSION = "v7";
 const CACHE_PREFIX = "atlas-h-elia";
 const APP_CACHE_NAME = `${CACHE_PREFIX}-app-${CACHE_VERSION}`;
 const OFFLINE_FALLBACK_PATH = "./index.html";
