@@ -20,6 +20,7 @@ window.HeliaStore = (() => {
   let controls = [];
   let storageAvailable = false;
   let lastError = null;
+  let lastExportedAt = null;
 
   load();
 
@@ -41,6 +42,7 @@ window.HeliaStore = (() => {
       const list = Array.isArray(payload?.controls) ? payload.controls : [];
 
       controls = list.map(normalizeControl).filter(Boolean);
+      lastExportedAt = typeof payload?.lastExportedAt === "string" ? payload.lastExportedAt : null;
     } catch (error) {
       lastError = error;
       storageAvailable = isStorageWritable();
@@ -56,6 +58,7 @@ window.HeliaStore = (() => {
         JSON.stringify({
           schemaVersion: SCHEMA_VERSION,
           savedAt: new Date().toISOString(),
+          lastExportedAt,
           controls,
         })
       );
@@ -182,8 +185,24 @@ window.HeliaStore = (() => {
     return false;
   }
 
+  /**
+   * Note la date du dernier export réussi.
+   */
+  function markExported() {
+    lastExportedAt = new Date().toISOString();
+    save();
+  }
+
+  /**
+   * Contrôles créés ou modifiés depuis le dernier export.
+   */
+  function getUnexportedCount() {
+    return controls.filter((control) => !lastExportedAt || control.updatedAt > lastExportedAt).length;
+  }
+
   function clear() {
     controls = [];
+    lastExportedAt = null;
     return save();
   }
 
@@ -426,6 +445,8 @@ window.HeliaStore = (() => {
     upsert,
     remove,
     clear,
+    markExported,
+    getUnexportedCount,
     getAll,
     getById,
     findLatestByTitle,

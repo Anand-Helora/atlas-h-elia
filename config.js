@@ -14,7 +14,7 @@ window.HELIA_CONFIG = Object.freeze({
     name: "H-ELIA",
     fullName: "ATLAS H-ELIA",
     description: "Contrôle des hydrants",
-    version: "1.1.0",
+    version: "1.2.0",
   },
 
   organisation: {
@@ -43,8 +43,8 @@ window.HELIA_CONFIG = Object.freeze({
   statuses: Object.freeze([
     { value: "OK", label: "OK", hint: "En service", tone: "ok" },
     { value: "HS", label: "HS", hint: "Hors service", tone: "danger" },
-    { value: "HSD", label: "HSD", tone: "warning" },
-    { value: "HSH", label: "HSH", tone: "warning" },
+    { value: "HSD", label: "HSD", hint: "Dévidoir HS", tone: "warning" },
+    { value: "HSH", label: "HSH", hint: "Hydrant HS", tone: "warning" },
   ]),
 
   /**

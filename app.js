@@ -362,8 +362,27 @@ window.HeliaApp = (() => {
 
           try {
             const text = await readFileText(file);
+            const controlCount = Store.getAll().length;
+
+            if (controlCount) {
+              const unexported = Store.getUnexportedCount();
+              const plural = controlCount > 1 ? "s" : "";
+
+              const confirmed = await confirmDialog({
+                title: "Charger ce fichier ?",
+                message: unexported
+                  ? `Les ${controlCount} contrôle${plural} du téléphone seront effacés, dont ${unexported} jamais exporté${unexported > 1 ? "s" : ""} : ${unexported > 1 ? "ils seront perdus" : "il sera perdu"}.`
+                  : `Les ${controlCount} contrôle${plural} du téléphone (déjà exporté${plural}) seront effacés.`,
+                confirmLabel: "Charger et vider",
+                danger: true,
+              });
+
+              if (!confirmed) return;
+            }
+
             const result = window.HeliaReference.importCsv(text, file.name);
-            showToast(`${result.count} hydrant${result.count > 1 ? "s" : ""} chargé${result.count > 1 ? "s" : ""}.`);
+            Store.clear();
+            showToast(`${result.count} hydrant${result.count > 1 ? "s" : ""} chargé${result.count > 1 ? "s" : ""}. Mémoire vidée.`);
             render(current);
           } catch (error) {
             console.error(error);
@@ -391,6 +410,7 @@ window.HeliaApp = (() => {
           summary.loaded
             ? h("p", { className: "help", text: `Chargé le ${importedDate}${summary.fileName ? ` · ${summary.fileName}` : ""}` })
             : h("p", { className: "help", text: "Chargez l'export CSV de la liste pour connaître les tests HP à réaliser." }),
+          h("p", { className: "help", text: "Charger un fichier vide les contrôles enregistrés sur le téléphone." }),
         ]),
       ]),
       fileInput,
@@ -626,34 +646,19 @@ window.HeliaApp = (() => {
 
     /* --- Hydrant (Titre) --- */
 
-    const titleInput = h("input", {
-      className: "input input-title",
-      attrs: {
-        id: "f-title",
-        type: "text",
-        value: values.title,
-        autocomplete: "off",
-        autocapitalize: "characters",
-        spellcheck: "false",
-        required: true,
-        maxlength: 255,
-      },
-      on: { input: markDirty },
-    });
-
-    const titleError = fieldError("f-title-error");
+    // Le titre vient du QR code (ou de la saisie sur l'écran de scan) :
+    // il n'est pas modifiable dans la fiche.
+    if (!title) {
+      window.setTimeout(() => navigate(SCREENS.SCAN, {}, { replace: true }));
+      return screenShell("form", []);
+    }
 
     const identity = h("section", { className: "card identity" }, [
       h("div", { className: "card-head" }, [
         h("span", { className: "badge-icon" }, icon("hydrant")),
         h("div", { className: "grow" }, [
-          h("label", {
-            className: "eyebrow",
-            attrs: { for: "f-title" },
-            text: CONFIG.sharePoint.columns.title,
-          }),
-          titleInput,
-          titleError,
+          h("p", { className: "eyebrow", text: CONFIG.sharePoint.columns.title }),
+          h("p", { className: "hydrant-title", attrs: { id: "f-title" }, text: values.title }),
         ]),
       ]),
       h("div", { className: "meta-row" }, [
@@ -888,14 +893,6 @@ window.HeliaApp = (() => {
     function submit() {
       let firstInvalid = null;
 
-      const titleValue = titleInput.value.trim();
-      if (!titleValue) {
-        showError(titleInput, titleError, "Le code de l'hydrant est obligatoire.");
-        firstInvalid ??= titleInput;
-      } else {
-        clearError(titleInput, titleError);
-      }
-
       if (!statusGroup.validate("Choisissez un statut.")) firstInvalid ??= statusGroup.element;
       if (hpZoneVisible && !hpGroup.validate("Indiquez le résultat du test HP.")) firstInvalid ??= hpGroup.element;
 
@@ -919,7 +916,7 @@ window.HeliaApp = (() => {
 
       const saved = Store.upsert({
         id: values.id,
-        title: titleValue,
+        title: values.title,
         controlDate: values.controlDate,
         status: statusGroup.getValue(),
         hpTest: hpZoneVisible ? hpGroup.getValue() : "",
@@ -1283,6 +1280,7 @@ window.HeliaApp = (() => {
       onClick: async () => {
         try {
           const result = await window.HeliaExport.share(Store.getAll());
+          if (result !== "cancelled") Store.markExported();
           if (result === "shared") showToast("Fichier CSV partagé.");
           if (result === "downloaded") showToast("Fichier CSV téléchargé.");
         } catch (error) {

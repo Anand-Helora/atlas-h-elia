@@ -324,6 +324,14 @@ h1:focus {
   height: 22px;
 }
 
+.hydrant-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  overflow-wrap: anywhere;
+}
+
 .reference-summary {
   margin: 0 0 2px;
   font-weight: 650;
