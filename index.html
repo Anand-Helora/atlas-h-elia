@@ -10,12 +10,12 @@
 
     <meta
       name="theme-color"
-      content="#044550"
+      content="#02181d"
     />
 
     <meta
       name="description"
-      content="ATLAS H-ELIA — Évaluation des locaux par intelligence artificielle"
+      content="ATLAS H-ELIA — Contrôle des hydrants"
     />
 
     <!-- Paramètres d’installation sur iPhone et iPad -->
@@ -62,10 +62,7 @@
   </head>
 
   <body>
-    <div
-      id="app"
-      class="app-shell"
-    ></div>
+    <div id="app"></div>
 
     <noscript>
       <div class="noscript-message">
@@ -73,43 +70,16 @@
       </div>
     </noscript>
 
-    <!-- Bibliothèque p5.js -->
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.8/lib/p5.min.js"></script>
+    <!-- Lecture des QR codes (navigateurs sans lecteur natif) -->
+    <script src="jsQR.js" defer></script>
 
-    <!-- TensorFlow.js -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
-
-    <!-- Teachable Machine Image -->
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.3/dist/teachablemachine-image.min.js"></script>
-
-    <!-- Configuration et services principaux -->
-    <script src="config.js"></script>
-    <script src="navigation.js"></script>
-    <script src="camera.js"></script>
-    <script src="ai.js"></script>
-    <script src="inventaire.js"></script>
-
-    <!-- Export et partage -->
-    <script src="export.js"></script>
-    <script src="share.js"></script>
-
-    <!-- Fonctionnalités du scan -->
-    <script src="manual.js"></script>
-
-    <!-- Habillage des écrans -->
-    <script src="home.js"></script>
-    <script src="identification.js"></script>
-    <script src="scan.js"></script>
-    <script src="summary-design.js"></script>
-
-    <!-- Interface de partage du récapitulatif -->
-    <script src="share-ui.js"></script>
-
-    <!-- Interface principale -->
-    <script src="ui.js"></script>
-    <script src="sketch.js"></script>
+    <script src="config.js" defer></script>
+    <script src="store.js" defer></script>
+    <script src="scanner.js" defer></script>
+    <script src="export.js" defer></script>
+    <script src="app.js" defer></script>
 
     <!-- Activation de la PWA -->
-    <script src="pwa.js"></script>
+    <script src="pwa.js" defer></script>
   </body>
 </html>

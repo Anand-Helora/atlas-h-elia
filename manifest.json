@@ -2,14 +2,14 @@
   "id": "./",
   "name": "ATLAS H-ELIA",
   "short_name": "H-ELIA",
-  "description": "Évaluation des locaux par intelligence artificielle",
+  "description": "Contrôle des hydrants",
   "lang": "fr-BE",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#001217",
-  "theme_color": "#044550",
+  "theme_color": "#02181d",
   "categories": [
     "productivity",
     "utilities"
