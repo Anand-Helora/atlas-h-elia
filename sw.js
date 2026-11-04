@@ -8,7 +8,7 @@
  * - les anciens caches (dont ceux de la version IA) sont supprimés.
  */
 
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const CACHE_PREFIX = "atlas-h-elia";
 const APP_CACHE_NAME = `${CACHE_PREFIX}-app-${CACHE_VERSION}`;
 const OFFLINE_FALLBACK_PATH = "./index.html";
@@ -24,6 +24,7 @@ const APP_ASSETS = Object.freeze([
   "./jsQR.js",
   "./config.js",
   "./store.js",
+  "./reference.js",
   "./scanner.js",
   "./export.js",
   "./app.js",

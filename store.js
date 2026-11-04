@@ -104,6 +104,8 @@ window.HeliaStore = (() => {
       hpTest: cleanChoice(value.hpTest, window.HELIA_CONFIG.hpTests),
       lastHpTestDate: cleanText(value.lastHpTestDate, MAX_LENGTHS.lastHpTestDate),
       comments: cleanMultiline(value.comments, MAX_LENGTHS.comments),
+      baselineHpDate: cleanText(value.baselineHpDate, MAX_LENGTHS.lastHpTestDate),
+      hpZoneShown: value.hpZoneShown !== false,
       createdAt: typeof value.createdAt === "string" ? value.createdAt : now,
       updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : now,
     };
@@ -150,6 +152,7 @@ window.HeliaStore = (() => {
       ...previous,
       ...data,
       lastHpTestDate: formatHpDateInput(data.lastHpTestDate),
+      baselineHpDate: formatHpDateInput(data.baselineHpDate ?? previous?.baselineHpDate),
       createdAt: previous?.createdAt ?? now,
       updatedAt: now,
     });
@@ -243,7 +246,7 @@ window.HeliaStore = (() => {
   /**
    * Analyse la date du dernier test HP.
    *
-   * Formats acceptés : AAAA, MM/AAAA, JJ/MM/AAAA
+   * Formats acceptés : AAAA, MM/AAAA, JJ/MM/AAAA, JJ-MM-AA
    * (séparateurs / . ou -) et AAAA-MM-JJ.
    *
    * Lorsque seule l'année (ou le mois) est connue,
@@ -269,10 +272,10 @@ window.HeliaStore = (() => {
     } else if ((match = text.match(/^(\d{1,2})[/.-](\d{4})$/))) {
       month = Number(match[1]);
       year = Number(match[2]);
-    } else if ((match = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/))) {
+    } else if ((match = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})$/))) {
       day = Number(match[1]);
       month = Number(match[2]);
-      year = Number(match[3]);
+      year = expandYear(match[3]);
     } else if ((match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) {
       year = Number(match[1]);
       month = Number(match[2]);
@@ -313,6 +316,20 @@ window.HeliaStore = (() => {
     }
 
     return { date, text: normalized, precision };
+  }
+
+  /**
+   * Année sur deux chiffres (export SharePoint « 04-11-20 ») :
+   * 20 → 2020, sauf si cela tombe dans le futur (→ 19xx).
+   */
+  function expandYear(text) {
+    if (text.length === 4) {
+      return Number(text);
+    }
+
+    const value = Number(text);
+    const currentShort = new Date().getFullYear() % 100;
+    return value <= currentShort + 1 ? 2000 + value : 1900 + value;
   }
 
   /**
@@ -412,6 +429,8 @@ window.HeliaStore = (() => {
     getAll,
     getById,
     findLatestByTitle,
+    normalizeKey,
+    normalizeHpDate: formatHpDateInput,
     todayIso,
     formatIsoDate,
     parseHpDate,

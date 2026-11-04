@@ -47,6 +47,8 @@ window.HeliaApp = (() => {
     calendar: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
     gauge: '<svg viewBox="0 0 24 24"><path d="M4 16a8 8 0 1116 0"/><path d="M12 16l4-5"/><circle cx="12" cy="16" r="1.2"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    upload: '<svg viewBox="0 0 24 24"><path d="M12 16V4M7.5 8.5L12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>',
+    database: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg>',
     home: '<svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>',
   };
 
@@ -337,8 +339,82 @@ window.HeliaApp = (() => {
       storageWarning,
       h("div", { className: "hero-action" }, startButton),
       card,
+      referenceCard(),
       footer,
     ]);
+  }
+
+  /**
+   * Carte d'import de l'export CSV de la liste SharePoint.
+   * Le référentiel sert à connaître la date du dernier test HP
+   * de chaque hydrant ; il n'est pas affiché dans la liste.
+   */
+  function referenceCard() {
+    const summary = window.HeliaReference.getSummary();
+
+    const fileInput = h("input", {
+      attrs: { type: "file", accept: ".csv,text/csv", hidden: true },
+      on: {
+        change: async () => {
+          const file = fileInput.files?.[0];
+          fileInput.value = "";
+          if (!file) return;
+
+          try {
+            const text = await readFileText(file);
+            const result = window.HeliaReference.importCsv(text, file.name);
+            showToast(`${result.count} hydrant${result.count > 1 ? "s" : ""} chargé${result.count > 1 ? "s" : ""}.`);
+            render(current);
+          } catch (error) {
+            console.error(error);
+            showToast(error.message || "Import impossible.", "danger");
+          }
+        },
+      },
+    });
+
+    const importedDate = summary.importedAt
+      ? new Date(summary.importedAt).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" })
+      : "";
+
+    return h("section", { className: "card card-compact reference-card", attrs: { "aria-label": "Référentiel SharePoint" } }, [
+      h("div", { className: "card-head" }, [
+        h("span", { className: "badge-icon badge-icon-sm" }, icon("database")),
+        h("div", { className: "grow" }, [
+          h("p", { className: "eyebrow", text: "Référentiel SharePoint" }),
+          h("p", {
+            className: "reference-summary",
+            text: summary.loaded
+              ? `${summary.count} hydrant${summary.count > 1 ? "s" : ""} · ${summary.overdue} avec test HP > ${CONFIG.hpTestMaxAgeYears} ans`
+              : "Aucun export chargé",
+          }),
+          summary.loaded
+            ? h("p", { className: "help", text: `Chargé le ${importedDate}${summary.fileName ? ` · ${summary.fileName}` : ""}` })
+            : h("p", { className: "help", text: "Chargez l'export CSV de la liste pour connaître les tests HP à réaliser." }),
+        ]),
+      ]),
+      fileInput,
+      button({
+        label: summary.loaded ? "Mettre à jour l'export" : "Charger un export SharePoint",
+        iconName: "upload",
+        variant: "ghost",
+        onClick: () => fileInput.click(),
+      }),
+    ]);
+  }
+
+  /**
+   * Lit un fichier texte en UTF-8, avec repli Windows-1252
+   * si le fichier a été enregistré par Excel en ANSI.
+   */
+  async function readFileText(file) {
+    const buffer = await file.arrayBuffer();
+
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    } catch {
+      return new TextDecoder("windows-1252").decode(buffer);
+    }
   }
 
   function stat(value, label, tone = "") {
@@ -512,7 +588,27 @@ window.HeliaApp = (() => {
     const editing = params.id ? Store.getById(params.id) : null;
     const title = editing?.title ?? String(params.title ?? "").trim();
     const previous = editing ? null : Store.findLatestByTitle(title);
+    const referenceEntry = window.HeliaReference.find(title);
+    const referenceSummary = window.HeliaReference.getSummary();
     const today = Store.todayIso();
+
+    /*
+     * Date du dernier test HP connue avant ce contrôle :
+     * contrôle local précédent, sinon référentiel SharePoint.
+     */
+    const baselineHpDate = editing
+      ? editing.baselineHpDate ?? editing.lastHpTestDate
+      : Store.normalizeHpDate(previous?.lastHpTestDate || referenceEntry?.lastHpTestDate || "");
+
+    const baselineHpState = Store.getHpTestState(baselineHpDate).state;
+
+    /*
+     * La zone « Test HP » n'apparaît que si le dernier test date
+     * de plus de 5 ans, ou si sa date est inconnue.
+     */
+    const hpZoneVisible = editing
+      ? editing.hpZoneShown !== false
+      : ["overdue", "empty", "invalid", "future"].includes(baselineHpState);
 
     const values = {
       id: editing?.id ?? null,
@@ -520,7 +616,7 @@ window.HeliaApp = (() => {
       controlDate: editing?.controlDate ?? today,
       status: editing?.status ?? "",
       hpTest: editing?.hpTest ?? "",
-      lastHpTestDate: editing?.lastHpTestDate ?? previous?.lastHpTestDate ?? "",
+      lastHpTestDate: editing?.lastHpTestDate ?? baselineHpDate,
       comments: editing?.comments ?? "",
     };
 
@@ -566,7 +662,31 @@ window.HeliaApp = (() => {
         h("strong", { text: Store.formatIsoDate(values.controlDate) }),
         values.controlDate === today ? h("span", { className: "chip", text: "Aujourd'hui" }) : null,
       ]),
+      baselineHpDate && !hpZoneVisible
+        ? h("div", { className: "meta-row" }, [
+            icon("gauge", "icon icon-sm"),
+            h("span", { text: `${CONFIG.sharePoint.columns.lastHpTestDate} : ` }),
+            h("strong", { text: baselineHpDate }),
+            h("span", {
+              className: `chip ${baselineHpState === "soon" ? "chip-warn" : "chip-ok"}`,
+              text: baselineHpState === "soon" ? "Échéance proche" : "À jour",
+            }),
+          ])
+        : null,
+      referenceEntry
+        ? h("p", {
+            className: "reference-line",
+            text: `SharePoint : dernier contrôle ${referenceEntry.controlDate || "—"}${referenceEntry.status ? ` · statut ${referenceEntry.status}` : ""}${referenceEntry.hpTest ? ` · test HP ${referenceEntry.hpTest}` : ""}`,
+          })
+        : null,
     ]);
+
+    const referenceNotice =
+      !editing && referenceSummary.loaded && !referenceEntry
+        ? h("div", { className: "alert alert-warn" }, [
+            h("p", { text: "Cet hydrant ne figure pas dans le référentiel SharePoint chargé. Vérifiez le code scanné." }),
+          ])
+        : null;
 
     /* --- Contrôle déjà présent --- */
 
@@ -673,8 +793,8 @@ window.HeliaApp = (() => {
       h("p", {
         className: "help",
         attrs: { id: "f-hpdate-help" },
-        text: previous?.lastHpTestDate && !editing
-          ? "Repris du dernier contrôle de cet hydrant. Année seule acceptée."
+        text: baselineHpDate && !editing
+          ? `Repris ${previous?.lastHpTestDate ? "du dernier contrôle" : "de SharePoint"}. Passe à aujourd'hui si le test HP est OK.`
           : "Année seule acceptée (ex. 2020).",
       }),
       hpDateError,
@@ -682,6 +802,44 @@ window.HeliaApp = (() => {
     ]);
 
     renderHpIndicator(hpIndicator, values.lastHpTestDate);
+
+    /*
+     * Test HP « OK » : le dernier test devient celui d'aujourd'hui.
+     * Si l'on change d'avis, la date d'origine est restaurée.
+     */
+    const todayText = Store.formatIsoDate(today);
+
+    hpGroup.element.addEventListener("change", () => {
+      const choice = hpGroup.getValue();
+
+      if (choice === "OK" && hpDateInput.value.trim() === baselineHpDate) {
+        hpDateInput.value = todayText;
+        refreshHpIndicator();
+      } else if (choice !== "OK" && hpDateInput.value.trim() === todayText && baselineHpDate !== todayText) {
+        hpDateInput.value = baselineHpDate;
+        refreshHpIndicator();
+      }
+    });
+
+    const hpZone = hpZoneVisible
+      ? h("section", { className: "card hp-zone" }, [
+          h("div", { className: "hp-zone-head" }, [
+            icon("warning", "icon"),
+            h("div", {}, [
+              h("h2", { className: "card-title", text: "Contrôle haute pression" }),
+              h("p", {
+                className: "help",
+                text:
+                  baselineHpState === "overdue"
+                    ? `Le dernier test HP date de plus de ${CONFIG.hpTestMaxAgeYears} ans.`
+                    : "Date du dernier test HP inconnue.",
+              }),
+            ]),
+          ]),
+          hpGroup.element,
+          hpDateField,
+        ])
+      : null;
 
     /* --- Commentaires --- */
 
@@ -713,9 +871,11 @@ window.HeliaApp = (() => {
       },
       [
         identity,
+        referenceNotice,
         previousNotice,
-        h("section", { className: "card" }, [statusGroup.element, hpGroup.element]),
-        h("section", { className: "card" }, [hpDateField, commentsField]),
+        h("section", { className: "card" }, [statusGroup.element]),
+        hpZone,
+        h("section", { className: "card" }, [commentsField]),
         h("div", { className: "actions sticky-actions" }, [
           h("button", { className: "btn btn-primary btn-lg", attrs: { type: "submit" } }, [
             icon("check"),
@@ -737,9 +897,9 @@ window.HeliaApp = (() => {
       }
 
       if (!statusGroup.validate("Choisissez un statut.")) firstInvalid ??= statusGroup.element;
-      if (!hpGroup.validate("Indiquez le résultat du test HP.")) firstInvalid ??= hpGroup.element;
+      if (hpZoneVisible && !hpGroup.validate("Indiquez le résultat du test HP.")) firstInvalid ??= hpGroup.element;
 
-      const hpState = Store.getHpTestState(hpDateInput.value);
+      const hpState = hpZoneVisible ? Store.getHpTestState(hpDateInput.value) : { state: "ok" };
       if (hpState.state === "invalid") {
         showError(hpDateInput, hpDateError, "Format non reconnu. Exemples : 2020, 03/2021, 15/03/2021.");
         firstInvalid ??= hpDateInput;
@@ -762,8 +922,10 @@ window.HeliaApp = (() => {
         title: titleValue,
         controlDate: values.controlDate,
         status: statusGroup.getValue(),
-        hpTest: hpGroup.getValue(),
-        lastHpTestDate: hpDateInput.value,
+        hpTest: hpZoneVisible ? hpGroup.getValue() : "",
+        lastHpTestDate: hpZoneVisible ? hpDateInput.value : baselineHpDate,
+        baselineHpDate,
+        hpZoneShown: hpZoneVisible,
         comments: commentsInput.value,
       });
 

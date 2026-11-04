@@ -314,6 +314,60 @@ h1:focus {
   height: 28px;
 }
 
+.badge-icon-sm {
+  width: 44px;
+  height: 44px;
+}
+
+.badge-icon-sm svg {
+  width: 22px;
+  height: 22px;
+}
+
+.reference-summary {
+  margin: 0 0 2px;
+  font-weight: 650;
+}
+
+.reference-line {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.chip-ok {
+  border-color: rgb(84 233 154 / 50%);
+  color: var(--ok);
+  background: rgb(84 233 154 / 10%);
+}
+
+.chip-warn {
+  border-color: rgb(255 177 92 / 55%);
+  color: var(--warn);
+  background: rgb(255 177 92 / 10%);
+}
+
+.hp-zone {
+  border-color: rgb(255 107 94 / 55%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%), 0 0 30px rgb(255 107 94 / 14%), 0 24px 60px rgb(0 0 0 / 28%);
+  animation: enter 0.35s ease-out both;
+}
+
+.hp-zone-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--danger);
+}
+
+.hp-zone-head .card-title {
+  color: var(--white);
+}
+
+.hp-zone-head .help {
+  margin-top: 2px;
+}
+
 /* =========================================================
    ICÔNES
    ========================================================= */
